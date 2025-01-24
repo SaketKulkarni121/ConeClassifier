@@ -107,11 +107,12 @@ class TrackConeSimulator:
         all_features = []
         all_labels = []
         
-        print(f"Generating training data with {num_splines} splines and {num_samples} samples per spline...")
+        # print(f"Generating training data with {num_splines} splines and {num_samples} samples per spline...")
         
         for spline_idx in range(num_splines):
             self.__init__(num_points=20)
-            print(f"  Generating spline {spline_idx + 1}/{num_splines}...")
+            if spline_idx % 1000 == 0:
+                print(f"  Generating spline {spline_idx + 1}/{num_splines}...")
             
             for sample_idx in range(num_samples):
                 left_cones, right_cones, start_point, direction = self.generate_cones()
@@ -154,7 +155,6 @@ class TrackConeSimulator:
         params = {
             'max_depth': 12,          # Depth of the trees (lower to reduce overfitting)
             'learning_rate': 0.1,   # Smaller learning rate for finer adjustments
-            'n_estimators': 1000,    # Number of trees
             'objective': 'binary:logistic', # Binary classification task
             'eval_metric': 'logloss',         # Logarithmic loss as evaluation metric
             'subsample': 0.85,              # Subsample ratio of the training data
@@ -170,7 +170,7 @@ class TrackConeSimulator:
         watchlist = [(dtrain, 'train'), (dtest, 'eval')]
 
         # Train the model with early stopping
-        model = xgb.train(params, dtrain, num_boost_round=10000, early_stopping_rounds=100, evals=watchlist)
+        model = xgb.train(params, dtrain, num_boost_round=10000, early_stopping_rounds=100, evals=watchlist, verbose_eval=0)
         
         # Make predictions
         y_pred = model.predict(dtest, iteration_range=(0, model.best_iteration))
@@ -181,20 +181,19 @@ class TrackConeSimulator:
         print(f"XGBoost Classifier training complete. Accuracy: {accuracy:.4f}")
         
         # Save the trained model and scaler
-        joblib.dump(model, 'xgb_classifier.joblib')
-        joblib.dump(scaler, 'scaler.joblib')
+        model.save_model('model.bin')
         
         return model, accuracy
 
 
-    def test_classifier_on_random_splines(self, classifier, scaler, num_splines=30, num_samples=100):
+    def test_classifier_on_random_splines(self, classifier, num_splines=30, num_samples=100):
         print(f"Testing classifier on {num_splines} random splines...")
         
         accuracies = []
         
         for spline_idx in range(num_splines):
             test_simulator = TrackConeSimulator()
-            print(f"  Testing spline {spline_idx + 1}/{num_splines}...")
+            # print(f"  Testing spline {spline_idx + 1}/{num_splines}...")
             
             all_features = []
             all_labels = []
@@ -220,14 +219,19 @@ class TrackConeSimulator:
             X_test = np.array(all_features)
             y_test = np.array(all_labels)
             
-            X_test_scaled = scaler.transform(X_test)
-            y_pred = classifier.predict(X_test_scaled)
+            dtest = xgb.DMatrix(X_test)
+            
+            # Predict using the classifier
+            y_pred = classifier.predict(dtest)
+            y_pred = (y_pred > 0.5).astype(int)  # Convert to binary classification
+            
             accuracy = accuracy_score(y_test, y_pred)
             accuracies.append(accuracy)
             
         average_accuracy = np.mean(accuracies)
         print(f"Average accuracy over {num_splines} splines: {average_accuracy:.4f}")
         return average_accuracy
+
 
 def save_training_data(data, filename='training_data.pkl'):
     """Save training data to a pickle file"""
@@ -249,28 +253,21 @@ if __name__ == "__main__":
     
     training_data = load_training_data()
     if training_data is None:
-        X, y = simulator.generate_training_data(num_samples=1, num_splines=10000000)
+        X, y = simulator.generate_training_data(num_samples=1, num_splines=5)
         save_training_data((X, y))
     else:
         print("Loading training data from file...")
         X, y = training_data
     
     # Try to load pre-trained model and scaler if they exist
-    if os.path.exists('xgb_classifier.joblib') and os.path.exists('scaler.joblib'):
+    if os.path.exists('model.bin'):
         print("Loading pre-trained model and scaler...")
-        classifier = joblib.load('xgb_classifier.joblib')
-        scaler = joblib.load('scaler.joblib')
-        # Evaluate accuracy on training data
-        X_scaled = scaler.transform(X)
-        y_pred = classifier.predict(X_scaled)
-        accuracy = accuracy_score(y, y_pred)
+        classifier = xgb.Booster()
+        classifier.load_model('model.bin')
     else:
         print("No pre-trained model found, training new model...")
         classifier, accuracy = simulator.train_cone_classifier(X, y)
-
-    print("Loading scaler...")
-    scaler = joblib.load('scaler.joblib')
     
     print("Testing classifier on random splines...")
-    average_accuracy = simulator.test_classifier_on_random_splines(classifier, scaler)
+    average_accuracy = simulator.test_classifier_on_random_splines(classifier)
     print(f"Average Test Accuracy: {average_accuracy:.4f}")
