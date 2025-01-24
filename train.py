@@ -253,7 +253,7 @@ if __name__ == "__main__":
     
     training_data = load_training_data()
     if training_data is None:
-        X, y = simulator.generate_training_data(num_samples=1, num_splines=5)
+        X, y = simulator.generate_training_data(num_samples=1, num_splines=10000000)
         save_training_data((X, y))
     else:
         print("Loading training data from file...")
