@@ -3,6 +3,7 @@ import scipy.interpolate as interpolate
 import matplotlib.pyplot as plt
 import joblib
 import time
+import pickle
 
 class TrackValidator:
     def __init__(self, classifier_path='cone_classifier.joblib', scaler_path='scaler.joblib'):
@@ -50,11 +51,7 @@ class TrackValidator:
             distances = np.linalg.norm( np.column_stack((track_x, track_y)) - cone, axis=1)
             distance = np.min(distances)
             
-            angle = np.arctan2(cone[1] - track_y[np.argmin(distances)], cone[0] - track_x[np.argmin(distances)])
-            angles = np.arctan2(np.diff(track_y), np.diff(track_x))
-            
-            curvature = np.mean(np.diff(angles))
-            features.append([*cone, distance, angle, curvature])
+            features.append([*cone, distance])
         return np.array(features)
     
     def classify_cones(self, features):
@@ -100,10 +97,17 @@ class TrackValidator:
     def getAccuracy(self):
         return (self.total, self.incorrect, (self.total - self.incorrect) / self.total)
         
+def load_training_data(filename='training_data.pkl'):
+    """Load training data from a pickle file"""
+    with open(filename, 'rb') as f:
+        return pickle.load(f)
+
 def main():
     validator = TrackValidator()
     
     total_time = 0
+    
+    training_data = load_training_data()
     
     for i in range(30):
         spline_func, tck = validator.generate_random_track()
