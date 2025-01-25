@@ -228,6 +228,35 @@ class TrackConeSimulator:
             accuracy = accuracy_score(y_test, y_pred)
             accuracies.append(accuracy)
             
+            # # Plot the test results
+            # plt.figure(figsize=(10, 6))
+            
+            # # Plot track spline
+            # track_x, track_y = test_simulator.spline_func(np.linspace(0, 1, 100))
+            # plt.plot(track_x, track_y, 'k-', label='Track', alpha=0.5)
+            
+            # # Plot cones with predicted labels
+            # cones_x = X_test[:, 0]
+            # cones_y = X_test[:, 1]
+            
+            # # Plot predicted left cones (label 0) in blue
+            # left_mask = y_pred == 0
+            # plt.scatter(cones_x[left_mask], cones_y[left_mask], 
+            #            c='blue', marker='^', label='Predicted Left Cones')
+            
+            # # Plot predicted right cones (label 1) in red
+            # right_mask = y_pred == 1
+            # plt.scatter(cones_x[right_mask], cones_y[right_mask], 
+            #            c='red', marker='^', label='Predicted Right Cones')
+            
+            # plt.title(f'Spline {spline_idx + 1} - Accuracy: {accuracy:.4f}')
+            # plt.xlabel('X')
+            # plt.ylabel('Y')
+            # plt.legend()
+            # plt.axis('equal')
+            # plt.grid(True)
+            # plt.show()
+            
         average_accuracy = np.mean(accuracies)
         print(f"Average accuracy over {num_splines} splines: {average_accuracy:.4f}")
         return average_accuracy
@@ -253,7 +282,7 @@ if __name__ == "__main__":
     
     training_data = load_training_data()
     if training_data is None:
-        X, y = simulator.generate_training_data(num_samples=1, num_splines=10000000)
+        X, y = simulator.generate_training_data(num_samples=1, num_splines=5000000)
         save_training_data((X, y))
     else:
         print("Loading training data from file...")
