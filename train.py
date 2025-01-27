@@ -9,6 +9,8 @@ import pickle
 import os
 import xgboost as xgb
 
+PLOT_FLAG = False
+
 
 class TrackConeSimulator:
     def __init__(self, num_points=20, noise_std=0.1):
@@ -64,75 +66,77 @@ class TrackConeSimulator:
         # Get start point and direction
         start_point, direction = self.get_start_point_and_direction()
 
-        plt.figure(figsize=(12, 6))
-        t = np.linspace(0, 1, 200)
-        x, y = self.spline_func(t)
+        if PLOT_FLAG:
+            plt.figure(figsize=(12, 6))
+            t = np.linspace(0, 1, 200)
+            x, y = self.spline_func(t)
 
-        plt.plot(x, y, "g-", label="Track Centerline")
-        plt.scatter(left_cones[:, 0], left_cones[:, 1], color="blue", label="Left Cones")
-        plt.scatter(right_cones[:, 0], right_cones[:, 1], color="red", label="Right Cones")
+            plt.plot(x, y, "g-", label="Track Centerline")
+            plt.scatter(left_cones[:, 0], left_cones[:, 1], color="blue", label="Left Cones")
+            plt.scatter(right_cones[:, 0], right_cones[:, 1], color="red", label="Right Cones")
 
-        # Highlight initial cones
-        plt.scatter(
-            left_cones[:5, 0],
-            left_cones[:5, 1],
-            color="cyan",
-            marker="x",
-            s=100,
-            label="Initial Left Cones",
-        )
-        plt.scatter(
-            right_cones[-5:, 0],
-            right_cones[-5:, 1],
-            color="magenta",
-            marker="x",
-            s=100,
-            label="Initial Right Cones",
-        )
+            # Highlight initial cones
+            plt.scatter(
+                left_cones[:5, 0],
+                left_cones[:5, 1],
+                color="cyan",
+                marker="x",
+                s=100,
+                label="Initial Left Cones",
+            )
+            plt.scatter(
+                right_cones[-5:, 0],
+                right_cones[-5:, 1],
+                color="magenta",
+                marker="x",
+                s=100,
+                label="Initial Right Cones",
+                )
 
-        # Plot the start point and direction
-        plt.quiver(
-            start_point[0],
-            start_point[1],
-            direction[0],
-            direction[1],
-            angles="xy",
-            scale_units="xy",
-            scale=0.5,
-            color="purple",
-            label="Start Direction",
-        )
-        plt.scatter(start_point[0], start_point[1], color="orange", label="Start Point")
-        
-        print(right_cones)
+            # Plot the start point and direction
+            plt.quiver(
+                start_point[0],
+                start_point[1],
+                direction[0],
+                direction[1],
+                angles="xy",
+                scale_units="xy",
+                scale=0.5,
+                color="purple",
+                label="Start Direction",
+            )
+            plt.scatter(start_point[0], start_point[1], color="orange", label="Start Point")
+            
+            # print(right_cones)
 
-        plt.title("Track Simulation with Cones")
-        plt.xlabel("X coordinate")
-        plt.ylabel("Y coordinate")
-        plt.legend()
-        plt.grid(True)
-        plt.show()
+            plt.title("Track Simulation with Cones")
+            plt.xlabel("X coordinate")
+            plt.ylabel("Y coordinate")
+            plt.legend()
+            plt.grid(True)
+            plt.show()
 
         return left_cones, right_cones, start_point, direction
 
     def plot_track(self, left_cones, right_cones):
-        plt.figure(figsize=(12, 6))
+        if PLOT_FLAG:
+            plt.figure(figsize=(12, 6))
 
-        t = np.linspace(0, 1, 200)
-        x, y = self.spline_func(t)
+            t = np.linspace(0, 1, 200)
+            x, y = self.spline_func(t)
 
-        plt.plot(x, y, "g-", label="Track Centerline")
-        plt.scatter(left_cones[:, 0], left_cones[:, 1], color="blue", label="Left Cones")
-        plt.scatter(right_cones[:, 0], right_cones[:, 1], color="red", label="Right Cones")
+            plt.plot(x, y, "g-", label="Track Centerline")
+            plt.scatter(left_cones[:, 0], left_cones[:, 1], color="blue", label="Left Cones")
+            plt.scatter(right_cones[:, 0], right_cones[:, 1], color="red", label="Right Cones")
 
-        plt.title("Track Simulation with Cones")
+            plt.title("Track Simulation with Cones")
 
-        plt.xlabel("X coordinate")
-        plt.ylabel("Y coordinate")
+            plt.xlabel("X coordinate")
+            plt.ylabel("Y coordinate")
 
-        plt.legend()
-        plt.grid(True)
-        plt.show()
+            plt.legend()
+            plt.grid(True)
+            plt.show()
 
     def generate_training_data(self, num_samples, num_splines):
         all_features = []
