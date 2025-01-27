@@ -9,294 +9,319 @@ import pickle
 import os
 import xgboost as xgb
 
+
 class TrackConeSimulator:
     def __init__(self, num_points=20, noise_std=0.1):
         x = np.linspace(0, 10, num_points)
         y = np.cumsum(np.random.randn(num_points)) * 0.5
-        
+
         tck, u = interpolate.splprep([x, y], s=1)
-        
+
         self.spline_func = lambda t: interpolate.splev(t, tck)
         self.tck = tck
-        
+
         self.x = x
         self.y = y
-    
+
     def get_start_point_and_direction(self):
         # Get the first point (start point)
         start_x, start_y = self.spline_func(0)
-        
+
         # Calculate the direction at t=0 (tangent vector)
         dx, dy = interpolate.splev(0, self.tck, der=1)
-        
+
         # Normalize the direction vector
         direction = np.array([dx, dy])
         direction /= np.linalg.norm(direction)
-        
+
         return np.array([start_x, start_y]), direction
-    
-    def generate_cones(self, cone_spacing=.20, lateral_offset=.15, lateral_noise=0.02, longitudinal_noise=0.02):
-        t = np.linspace(0, 1, int(10/cone_spacing))
-        
+
+    def generate_cones(self, cone_spacing=0.20, lateral_offset=0.15, lateral_noise=0.02, longitudinal_noise=0.02):
+        t = np.linspace(0, 1, int(10 / cone_spacing))
+
         dx, dy = interpolate.splev(t, self.tck, der=1)
-        
+
         normals = np.column_stack([-dy, dx])
         normals /= np.linalg.norm(normals, axis=1)[:, np.newaxis]
-        
+
         left_cones = []
         right_cones = []
-        
+
         for i, (x, y, normal) in enumerate(zip(self.spline_func(t)[0], self.spline_func(t)[1], normals)):
             long_noise = np.random.normal(0, longitudinal_noise)
-            
+
             lat_noise_left = np.random.normal(0, lateral_noise)
             left_cone = np.array([x, y]) + normal * (lateral_offset + lat_noise_left)
             left_cones.append(left_cone)
-            
+
             lat_noise_right = np.random.normal(0, lateral_noise)
             right_cone = np.array([x, y]) - normal * (lateral_offset + lat_noise_right)
             right_cones.insert(0, right_cone)
-            
+
         left_cones = np.array(left_cones)
         right_cones = np.array(right_cones)
-        
+
         # Get start point and direction
         start_point, direction = self.get_start_point_and_direction()
+
+        plt.figure(figsize=(12, 6))
+        t = np.linspace(0, 1, 200)
+        x, y = self.spline_func(t)
+
+        plt.plot(x, y, "g-", label="Track Centerline")
+        plt.scatter(left_cones[:, 0], left_cones[:, 1], color="blue", label="Left Cones")
+        plt.scatter(right_cones[:, 0], right_cones[:, 1], color="red", label="Right Cones")
+
+        # Highlight initial cones
+        plt.scatter(
+            left_cones[:5, 0],
+            left_cones[:5, 1],
+            color="cyan",
+            marker="x",
+            s=100,
+            label="Initial Left Cones",
+        )
+        plt.scatter(
+            right_cones[-5:, 0],
+            right_cones[-5:, 1],
+            color="magenta",
+            marker="x",
+            s=100,
+            label="Initial Right Cones",
+        )
+
+        # Plot the start point and direction
+        plt.quiver(
+            start_point[0],
+            start_point[1],
+            direction[0],
+            direction[1],
+            angles="xy",
+            scale_units="xy",
+            scale=0.5,
+            color="purple",
+            label="Start Direction",
+        )
+        plt.scatter(start_point[0], start_point[1], color="orange", label="Start Point")
         
-        # plt.figure(figsize=(12, 6))
-        # t = np.linspace(0, 1, 200)
-        # x, y = self.spline_func(t)
-        
-        # plt.plot(x, y, 'g-', label='Track Centerline')
-        # plt.scatter(left_cones[:, 0], left_cones[:, 1], color='blue', label='Left Cones')
-        # plt.scatter(right_cones[:, 0], right_cones[:, 1], color='red', label='Right Cones')
-        
-        # # Plot the start point and direction
-        # plt.quiver(start_point[0], start_point[1], direction[0], direction[1], angles='xy', scale_units='xy', scale=0.5, color='purple', label='Start Direction')
-        # plt.scatter(start_point[0], start_point[1], color='orange', label='Start Point')
-        
-        # plt.title('Track Simulation with Cones')
-        # plt.xlabel('X coordinate')
-        # plt.ylabel('Y coordinate')
-        # plt.legend()
-        # plt.grid(True)
-        # plt.show()
-        
+        print(right_cones)
+
+        plt.title("Track Simulation with Cones")
+        plt.xlabel("X coordinate")
+        plt.ylabel("Y coordinate")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
         return left_cones, right_cones, start_point, direction
 
     def plot_track(self, left_cones, right_cones):
         plt.figure(figsize=(12, 6))
-        
+
         t = np.linspace(0, 1, 200)
         x, y = self.spline_func(t)
-        
-        plt.plot(x, y, 'g-', label='Track Centerline')
-        plt.scatter(left_cones[:, 0], left_cones[:, 1], color='blue', label='Left Cones')
-        plt.scatter(right_cones[:, 0], right_cones[:, 1], color='red', label='Right Cones')
-        
-        plt.title('Track Simulation with Cones')
-        
-        plt.xlabel('X coordinate')
-        plt.ylabel('Y coordinate')
-        
+
+        plt.plot(x, y, "g-", label="Track Centerline")
+        plt.scatter(left_cones[:, 0], left_cones[:, 1], color="blue", label="Left Cones")
+        plt.scatter(right_cones[:, 0], right_cones[:, 1], color="red", label="Right Cones")
+
+        plt.title("Track Simulation with Cones")
+
+        plt.xlabel("X coordinate")
+        plt.ylabel("Y coordinate")
+
         plt.legend()
         plt.grid(True)
         plt.show()
-        
-    def generate_training_data(self, num_samples=1000, num_splines=200):
+
+    def generate_training_data(self, num_samples, num_splines):
         all_features = []
         all_labels = []
-        
-        # print(f"Generating training data with {num_splines} splines and {num_samples} samples per spline...")
-        
+        num_initial_cones = 5  # Number of initial cones to include
+
         for spline_idx in range(num_splines):
             self.__init__(num_points=20)
             if spline_idx % 1000 == 0:
                 print(f"  Generating spline {spline_idx + 1}/{num_splines}...")
-            
+
             for sample_idx in range(num_samples):
                 left_cones, right_cones, start_point, direction = self.generate_cones()
-                
                 cones = np.vstack([left_cones, right_cones])
-                labels = np.array([0]*len(left_cones) + [1]*len(right_cones))
-                
+                labels = np.array([0] * len(left_cones) + [1] * len(right_cones))
+
+                # Extract initial cones
+                first_left = left_cones[:num_initial_cones].flatten()
+                first_right = right_cones[-num_initial_cones:].flatten()
+
                 for cone in cones:
-                    track_x, track_y = self.spline_func(np.linspace(0, 1, 100))
-                    
-                    distances = np.linalg.norm(np.column_stack(start_point) - cone, axis=1)
-                    distance = np.min(distances)
-                    
-                    # Features include cone position, distance to track, start point, and direction
-                    features = [*cone, distance, *start_point, *direction]
+                    # Calculate distance from start point to cone
+                    distance = np.linalg.norm(cone - start_point)
+
+                    # Enhanced feature vector
+                    features = [
+                        *cone,
+                        distance,
+                        *start_point,
+                        *direction,
+                        *first_left,
+                        *first_right,
+                    ]
                     all_features.append(features)
-                    
+
                 all_labels.extend(labels)
-                
+
         print("Training data generation complete.")
-        
+
         return np.array(all_features), np.array(all_labels)
 
-    def train_cone_classifier(self, X, y, test_size=0.2, max_iter=1000):
+    def train_cone_classifier(self, X, y, test_size, max_iter):
         print("Training XGBoost classifier...")
-        
+
         # Split data into train/test sets
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
+
         # Standardize features
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
-        
+
         # Create DMatrix for XGBoost (can handle sparse and dense data better)
         dtrain = xgb.DMatrix(X_train_scaled, label=y_train)
         dtest = xgb.DMatrix(X_test_scaled, label=y_test)
-        
+
         # Define hyperparameters
         params = {
-            'max_depth': 12,          # Depth of the trees (lower to reduce overfitting)
-            'learning_rate': 0.1,   # Smaller learning rate for finer adjustments
-            'objective': 'binary:logistic', # Binary classification task
-            'eval_metric': 'logloss',         # Logarithmic loss as evaluation metric
-            'subsample': 0.85,              # Subsample ratio of the training data
-            'colsample_bytree': 0.85,        # Subsample ratio of features
-            'min_child_weight': 1,            # Minimum sum of instance weight needed in a child
-            'gamma': 0.1,                    # Regularization parameter for pruning
-            'lambda': 1,                     # L2 regularization term
-            'alpha': 0,                      # L1 regularization term
-            'random_state': 42
+            "max_depth": 12,  # Depth of the trees (lower to reduce overfitting)
+            "learning_rate": 0.1,  # Smaller learning rate for finer adjustments
+            "objective": "binary:logistic",  # Binary classification task
+            "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
+            "subsample": 0.85,  # Subsample ratio of the training data
+            "colsample_bytree": 0.85,  # Subsample ratio of features
+            "min_child_weight": 1,  # Minimum sum of instance weight needed in a child
+            "gamma": 0.1,  # Regularization parameter for pruning
+            "lambda": 1,  # L2 regularization term
+            "alpha": 0,  # L1 regularization term
+            "random_state": 42,
         }
-        
+
         # Watchlist for early stopping (monitor the validation set)
-        watchlist = [(dtrain, 'train'), (dtest, 'eval')]
+        watchlist = [(dtrain, "train"), (dtest, "eval")]
 
         # Train the model with early stopping
-        model = xgb.train(params, dtrain, num_boost_round=10000, early_stopping_rounds=100, evals=watchlist, verbose_eval=0)
-        
+        model = xgb.train(
+            params,
+            dtrain,
+            num_boost_round=10000,
+            early_stopping_rounds=100,
+            evals=watchlist,
+            verbose_eval=0,
+        )
+
         # Make predictions
         y_pred = model.predict(dtest, iteration_range=(0, model.best_iteration))
         y_pred = (y_pred > 0.5).astype(int)  # Convert to binary classification
-        
+
         # Evaluate accuracy
         accuracy = accuracy_score(y_test, y_pred)
         print(f"XGBoost Classifier training complete. Accuracy: {accuracy:.4f}")
-        
+
         # Save the trained model and scaler
-        model.save_model('model.bin')
-        
+        model.save_model("model.bin")
+
         return model, accuracy
 
-
-    def test_classifier_on_random_splines(self, classifier, num_splines=30, num_samples=100):
+    def test_classifier_on_random_splines(self, classifier, num_splines, num_samples):
         print(f"Testing classifier on {num_splines} random splines...")
-        
+
         accuracies = []
-        
+        num_initial_cones = 5
+
         for spline_idx in range(num_splines):
             test_simulator = TrackConeSimulator()
-            # print(f"  Testing spline {spline_idx + 1}/{num_splines}...")
-            
+
             all_features = []
             all_labels = []
-            
+
             for _ in range(num_samples):
                 left_cones, right_cones, start_point, direction = test_simulator.generate_cones()
                 cones = np.vstack([left_cones, right_cones])
-                labels = np.array([0]*len(left_cones) + [1]*len(right_cones))
-                
+                labels = np.array([0] * len(left_cones) + [1] * len(right_cones))
+
+                # Extract initial cones
+                first_left = left_cones[:num_initial_cones].flatten()
+                first_right = right_cones[-num_initial_cones:].flatten()
+
                 for cone in cones:
-                    track_x, track_y = test_simulator.spline_func(np.linspace(0, 1, 100))
-                    
-                    distances = np.linalg.norm(np.column_stack(start_point) - cone, axis=1)
-                    distance = np.min(distances)
-            
-                    # Features include cone position, distance to track, start point, and direction
-                    features = [*cone, distance, *start_point, *direction]
-                    
+                    # Calculate distance from start point to cone
+                    distance = np.linalg.norm(cone - start_point)
+
+                    # Enhanced feature vector
+                    features = [
+                        *cone,
+                        distance,
+                        *start_point,
+                        *direction,
+                        *first_left,
+                        *first_right,
+                    ]
                     all_features.append(features)
-                    
+
                 all_labels.extend(labels)
-                
+
             X_test = np.array(all_features)
             y_test = np.array(all_labels)
-            
+
             dtest = xgb.DMatrix(X_test)
-            
+
             # Predict using the classifier
             y_pred = classifier.predict(dtest)
             y_pred = (y_pred > 0.5).astype(int)  # Convert to binary classification
-            
+
             accuracy = accuracy_score(y_test, y_pred)
             accuracies.append(accuracy)
-            
-            # # Plot the test results
-            # plt.figure(figsize=(10, 6))
-            
-            # # Plot track spline
-            # track_x, track_y = test_simulator.spline_func(np.linspace(0, 1, 100))
-            # plt.plot(track_x, track_y, 'k-', label='Track', alpha=0.5)
-            
-            # # Plot cones with predicted labels
-            # cones_x = X_test[:, 0]
-            # cones_y = X_test[:, 1]
-            
-            # # Plot predicted left cones (label 0) in blue
-            # left_mask = y_pred == 0
-            # plt.scatter(cones_x[left_mask], cones_y[left_mask], 
-            #            c='blue', marker='^', label='Predicted Left Cones')
-            
-            # # Plot predicted right cones (label 1) in red
-            # right_mask = y_pred == 1
-            # plt.scatter(cones_x[right_mask], cones_y[right_mask], 
-            #            c='red', marker='^', label='Predicted Right Cones')
-            
-            # plt.title(f'Spline {spline_idx + 1} - Accuracy: {accuracy:.4f}')
-            # plt.xlabel('X')
-            # plt.ylabel('Y')
-            # plt.legend()
-            # plt.axis('equal')
-            # plt.grid(True)
-            # plt.show()
-            
+
         average_accuracy = np.mean(accuracies)
         print(f"Average accuracy over {num_splines} splines: {average_accuracy:.4f}")
         return average_accuracy
 
 
-def save_training_data(data, filename='training_data.pkl'):
+def save_training_data(data, filename="training_data.pkl"):
     """Save training data to a pickle file"""
-    with open(filename, 'wb') as f:
+    with open(filename, "wb") as f:
         pickle.dump(data, f)
 
-def load_training_data(filename='training_data.pkl'):
+
+def load_training_data(filename="training_data.pkl"):
     """Load training data from a pickle file if it exists"""
     if os.path.exists(filename):
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             return pickle.load(f)
     return None
+
 
 if __name__ == "__main__":
     print("Initializing TrackConeSimulator...")
     simulator = TrackConeSimulator()
-    
+
     print("Generating training data...")
-    
+
     training_data = load_training_data()
     if training_data is None:
-        X, y = simulator.generate_training_data(num_samples=1, num_splines=5000000)
+        X, y = simulator.generate_training_data(num_samples=1, num_splines=10)
         save_training_data((X, y))
     else:
         print("Loading training data from file...")
         X, y = training_data
-    
+
     # Try to load pre-trained model and scaler if they exist
-    if os.path.exists('model.bin'):
+    if os.path.exists("model.bin"):
         print("Loading pre-trained model and scaler...")
         classifier = xgb.Booster()
-        classifier.load_model('model.bin')
+        classifier.load_model("model.bin")
     else:
         print("No pre-trained model found, training new model...")
-        classifier, accuracy = simulator.train_cone_classifier(X, y)
-    
+        classifier, accuracy = simulator.train_cone_classifier(X, y, test_size=0.2, max_iter=1000)
+
     print("Testing classifier on random splines...")
-    average_accuracy = simulator.test_classifier_on_random_splines(classifier)
+    average_accuracy = simulator.test_classifier_on_random_splines(classifier, num_splines=10, num_samples=1000)
     print(f"Average Test Accuracy: {average_accuracy:.4f}")
