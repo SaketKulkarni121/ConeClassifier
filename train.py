@@ -236,7 +236,7 @@ class TrackConeSimulator:
         model.save_model("model.bin")
         joblib.dump(scaler, "scaler.bin")
 
-        return model, accuracy
+        return model, accuracy, scaler
 
     def test_classifier_on_random_splines(self, classifier, scaler, num_splines, num_samples):
         print(f"Testing classifier on {num_splines} random splines...")
@@ -335,7 +335,7 @@ if __name__ == "__main__":
         scaler = joblib.load("scaler.bin")
     else:
         print("No pre-trained model found, training new model...")
-        classifier, accuracy = simulator.train_cone_classifier(X, y, test_size=0.2, max_iter=1000)
+        classifier, accuracy, scaler = simulator.train_cone_classifier(X, y, test_size=0.2, max_iter=1000)
 
     print("Testing classifier on random splines...")
     average_accuracy = simulator.test_classifier_on_random_splines(classifier, scaler, num_splines=10, num_samples=1000)
