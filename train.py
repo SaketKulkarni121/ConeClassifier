@@ -201,7 +201,7 @@ class TrackConeSimulator:
 
         # Define hyperparameters
         params = {
-            "max_depth": 8,  # Depth of the trees (lower to reduce overfitting)
+            "max_depth": 10,  # Depth of the trees (lower to reduce overfitting)
             "learning_rate": 0.01,  # Smaller learning rate for finer adjustments
             "objective": "binary:logistic",  # Binary classification task
             "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
