@@ -11,19 +11,23 @@ import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.neural_network import MLPClassifier
 
-PLOT_FLAG = False
-
+PLOT_FLAG = True
 
 class TrackConeSimulator:
     def __init__(self, num_points=20, noise_std=0.1):
-        x = np.linspace(0, 10, num_points)
-        y = np.cumsum(np.random.randn(num_points)) * 0.5
+        self.num_points = num_points
+        self.noise_std = noise_std
+        self.reset_spline()
 
+    def reset_spline(self):
+        """Reset the spline to ensure a new random spline is generated."""
+        x = np.linspace(0, 10, self.num_points)
+        y = np.cumsum(np.random.randn(self.num_points)) * 0.5
+
+        # Create a new spline with the randomized data
         tck, u = interpolate.splprep([x, y], s=1)
-
         self.spline_func = lambda t: interpolate.splev(t, tck)
         self.tck = tck
-
         self.x = x
         self.y = y
 
@@ -120,35 +124,17 @@ class TrackConeSimulator:
 
         return left_cones, right_cones, start_point, direction
 
-    def plot_track(self, left_cones, right_cones):
-        if PLOT_FLAG:
-            plt.figure(figsize=(12, 6))
-
-            t = np.linspace(0, 1, 200)
-            x, y = self.spline_func(t)
-
-            plt.plot(x, y, "g-", label="Track Centerline")
-            plt.scatter(left_cones[:, 0], left_cones[:, 1], color="blue", label="Left Cones")
-            plt.scatter(right_cones[:, 0], right_cones[:, 1], color="red", label="Right Cones")
-
-            plt.title("Track Simulation with Cones")
-
-            plt.xlabel("X coordinate")
-            plt.ylabel("Y coordinate")
-
-            plt.legend()
-            plt.grid(True)
-            plt.show()
-
     def generate_training_data(self, num_samples, num_splines):
         all_features = []
         all_labels = []
         num_initial_cones = 5  # Number of initial cones to include
 
         for spline_idx in range(num_splines):
-            self.__init__(num_points=20)
             if spline_idx % 1000 == 0:
                 print(f"  Generating spline {spline_idx + 1}/{num_splines}...")
+
+            # Reset spline for each new iteration
+            self.reset_spline()
 
             for sample_idx in range(num_samples):
                 left_cones, right_cones, start_point, direction = self.generate_cones()
@@ -175,7 +161,7 @@ class TrackConeSimulator:
                     all_features.append(features)
 
                 all_labels.extend(labels)
-                
+
             if sample_idx % 1000 == 0:
                 save_training_data_incrementally((np.array(all_features), np.array(all_labels)))
                 
@@ -185,6 +171,26 @@ class TrackConeSimulator:
         print("Training data generation complete.")
 
         return True
+
+    def plot_track(self, left_cones, right_cones):
+        if PLOT_FLAG:
+            plt.figure(figsize=(12, 6))
+
+            t = np.linspace(0, 1, 200)
+            x, y = self.spline_func(t)
+
+            plt.plot(x, y, "g-", label="Track Centerline")
+            plt.scatter(left_cones[:, 0], left_cones[:, 1], color="blue", label="Left Cones")
+            plt.scatter(right_cones[:, 0], right_cones[:, 1], color="red", label="Right Cones")
+
+            plt.title("Track Simulation with Cones")
+
+            plt.xlabel("X coordinate")
+            plt.ylabel("Y coordinate")
+
+            plt.legend()
+            plt.grid(True)
+            plt.show()
 
 
     def train_cone_classifier(self, X, y, test_size, max_iter):
