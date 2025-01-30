@@ -9,6 +9,7 @@ import pickle
 import os
 import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
+from sklearn.neural_network import MLPClassifier
 
 PLOT_FLAG = False
 
@@ -185,47 +186,42 @@ class TrackConeSimulator:
 
         return True
 
+
     def train_cone_classifier(self, X, y, test_size, max_iter):
-        print("Training XGBoost classifier...")
+        print("Training MLP Classifier...")
 
         # Split data into train/test sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
 
         # Standardize features
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        # Hyperparameter tuning
-        param_dist = {
-            "max_depth": [6, 8, 10],
-            "learning_rate": [0.01, 0.05, 0.1],
-            "subsample": [0.8, 0.9, 1.0],
-            "colsample_bytree": [0.8, 0.9, 1.0],
-            "n_estimators": [500, 1000, 2000],
-            "lambda": [1, 5, 10],  # L2 regularization
-            "alpha": [0, 1, 5],  # L1 regularization
-        }
+        # Define MLP model
+        mlp_model = MLPClassifier(
+            hidden_layer_sizes=(64, 32),  # Two hidden layers: 64 and 32 neurons
+            activation='relu',            # ReLU activation for non-linearity
+            solver='adam',                # Adam optimizer
+            alpha=0.0001,                 # L2 regularization (prevents overfitting)
+            max_iter=max_iter,            # Maximum training iterations
+            early_stopping=True,          # Stops if validation score stops improving
+            random_state=42
+        )
 
-        xgb_model = xgb.XGBClassifier(objective="binary:logistic", random_state=42)
-        search = RandomizedSearchCV(xgb_model, param_dist, n_iter=20, cv=3, scoring="accuracy", verbose=2, n_jobs=-1)
-        search.fit(X_train_scaled, y_train)
+        # Train MLP model
+        mlp_model.fit(X_train_scaled, y_train)
 
-        # Train the best model
-        best_params = search.best_params_
-        model = xgb.XGBClassifier(**best_params)
-        model.fit(X_train_scaled, y_train, early_stopping_rounds=50, eval_set=[(X_test_scaled, y_test)], verbose=50)
-
-        # Evaluate
-        y_pred = model.predict(X_test_scaled)
+        # Evaluate the model
+        y_pred = mlp_model.predict(X_test_scaled)
         accuracy = accuracy_score(y_test, y_pred)
-        print(f"Final Accuracy: {accuracy * 100:.2f}%")
+        print(f"Final MLP Accuracy: {accuracy * 100:.2f}%")
 
         # Save model and scaler
-        model.save_model("best_model.bin")
+        joblib.dump(mlp_model, "mlp_model.pkl")
         joblib.dump(scaler, "scaler.bin")
 
-        return model, accuracy, scaler
+        return mlp_model, accuracy, scaler
 
 
     def test_classifier_on_random_splines(self, classifier, scaler, num_splines, num_samples):
