@@ -11,7 +11,7 @@ import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.neural_network import MLPClassifier
 
-PLOT_FLAG = False
+PLOT_FLAG = True
 
 class TrackConeSimulator:
     def __init__(self, num_points=20, noise_std=0.1):
@@ -253,12 +253,13 @@ class TrackConeSimulator:
 
         accuracies = []
         num_initial_cones = 5
+        
+        all_features = []
+        all_labels = []
 
         for spline_idx in range(num_splines):
             test_simulator = TrackConeSimulator()
-
-            all_features = []
-            all_labels = []
+            test_simulator.reset_spline()
 
             for _ in range(num_samples):
                 left_cones, right_cones, start_point, direction = test_simulator.generate_cones()
@@ -348,5 +349,5 @@ if __name__ == "__main__":
         classifier, accuracy, scaler = simulator.train_cone_classifier(X, y, test_size=0.2, max_iter=1000)
 
     print("Testing classifier on random splines...")
-    average_accuracy = simulator.test_classifier_on_random_splines(classifier, scaler, num_splines=10, num_samples=1000)
+    average_accuracy = simulator.test_classifier_on_random_splines(classifier, scaler, num_splines=30, num_samples=1)
     print(f"Average Test Accuracy: {average_accuracy:.4f}")
