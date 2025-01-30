@@ -194,7 +194,7 @@ class TrackConeSimulator:
 
 
     def train_cone_classifier(self, X, y, test_size, max_iter):
-        print("Training MLP Classifier...")
+        print("Training XGBoost classifier...")
 
         # Split data into train/test sets
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
@@ -204,30 +204,48 @@ class TrackConeSimulator:
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        # Define MLP model
-        mlp_model = MLPClassifier(
-            hidden_layer_sizes=(64, 32),  # Two hidden layers: 64 and 32 neurons
-            activation='relu',            # ReLU activation for non-linearity
-            solver='adam',                # Adam optimizer
-            alpha=0.0001,                 # L2 regularization (prevents overfitting)
-            max_iter=max_iter,            # Maximum training iterations
-            early_stopping=True,          # Stops if validation score stops improving
-            random_state=42
+        # Create DMatrix for XGBoost (can handle sparse and dense data better)
+        dtrain = xgb.DMatrix(X_train_scaled, label=y_train)
+        dtest = xgb.DMatrix(X_test_scaled, label=y_test)
+
+        # Define hyperparameters for tuning
+        params = {
+            "objective": "binary:logistic",  # Binary classification task
+            "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
+            "random_state": 42,
+            "learning_rate": 0.05,  # Increase learning rate
+            "max_depth": 6,  # Reduced max depth to reduce overfitting
+            "min_child_weight": 1,  # Regularization
+            "subsample": 0.8,  # Use 80% of data for each tree
+            "colsample_bytree": 0.8,  # Use 80% of features for each tree
+        }
+
+        # Watchlist for early stopping (monitor the validation set)
+        watchlist = [(dtrain, "train"), (dtest, "eval")]
+
+        # Train the model with early stopping
+        model = xgb.train(
+            params,
+            dtrain,
+            num_boost_round=1000,  # Reduced number of boosting rounds
+            early_stopping_rounds=100,
+            evals=watchlist,
+            verbose_eval=50,  # More frequent feedback to track progress
         )
 
-        # Train MLP model
-        mlp_model.fit(X_train_scaled, y_train)
+        # Make predictions
+        y_pred = model.predict(dtest, iteration_range=(0, model.best_iteration))
+        y_pred = (y_pred > 0.5).astype(int)  # Convert to binary classification
 
-        # Evaluate the model
-        y_pred = mlp_model.predict(X_test_scaled)
+        # Calculate accuracy
         accuracy = accuracy_score(y_test, y_pred)
-        print(f"Final MLP Accuracy: {accuracy * 100:.2f}%")
-
-        # Save model and scaler
-        joblib.dump(mlp_model, "mlp_model.pkl")
+        print(f"Accuracy: {accuracy * 100:.2f}%")
+        
+        # Save the trained model and scaler
+        model.save_model("model.bin")
         joblib.dump(scaler, "scaler.bin")
 
-        return mlp_model, accuracy, scaler
+        return model, accuracy, scaler
 
 
     def test_classifier_on_random_splines(self, classifier, scaler, num_splines, num_samples):
