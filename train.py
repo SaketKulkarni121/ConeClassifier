@@ -228,7 +228,7 @@ class TrackConeSimulator:
             params,
             dtrain,
             num_boost_round=1000,  # Reduced number of boosting rounds
-            early_stopping_rounds=1000,
+            early_stopping_rounds=10000,
             evals=watchlist,
             verbose_eval=50,  # More frequent feedback to track progress
         )
