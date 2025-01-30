@@ -213,7 +213,7 @@ class TrackConeSimulator:
             "objective": "binary:logistic",  # Binary classification task
             "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
             "random_state": 42,
-            "learning_rate": 0.05,  # Increase learning rate
+            "learning_rate": 0.01,  # Increase learning rate
             "max_depth": 6,  # Reduced max depth to reduce overfitting
             "min_child_weight": 1,  # Regularization
             "subsample": 0.8,  # Use 80% of data for each tree
@@ -329,7 +329,7 @@ if __name__ == "__main__":
 
     training_data = load_training_data()
     if training_data is None:
-        completed= simulator.generate_training_data(num_samples=1, num_splines=10000000)
+        completed= simulator.generate_training_data(num_samples=1, num_splines=10)
         if completed:
             print("Training data generation complete.")
             X, y = load_training_data()
