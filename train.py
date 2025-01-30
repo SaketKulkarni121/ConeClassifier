@@ -173,10 +173,16 @@ class TrackConeSimulator:
                     all_features.append(features)
 
                 all_labels.extend(labels)
+                
+            if sample_idx % 1000 == 0:
+                save_training_data_incrementally((np.array(all_features), np.array(all_labels)))
+                
+                all_features.clear()
+                all_labels.clear()
 
         print("Training data generation complete.")
 
-        return np.array(all_features), np.array(all_labels)
+        return True
 
     def train_cone_classifier(self, X, y, test_size, max_iter):
         print("Training XGBoost classifier...")
@@ -289,10 +295,13 @@ class TrackConeSimulator:
         return average_accuracy
 
 
-def save_training_data(data, filename="training_data.pkl"):
-    """Save training data to a pickle file"""
-    with open(filename, "wb") as f:
+def save_training_data_incrementally(data, filename="training_data.pkl"):
+    """Save training data to a pickle file incrementally."""
+    mode = 'ab' if os.path.exists(filename) else 'wb'
+    
+    with open(filename, mode) as f:
         pickle.dump(data, f)
+
 
 
 def load_training_data(filename="training_data.pkl"):
@@ -311,8 +320,10 @@ if __name__ == "__main__":
 
     training_data = load_training_data()
     if training_data is None:
-        X, y = simulator.generate_training_data(num_samples=1, num_splines=5000000)
-        save_training_data((X, y))
+        completed= simulator.generate_training_data(num_samples=1, num_splines=500000)
+        if completed:
+            print("Training data generation complete.")
+            X, y = load_training_data()
     else:
         print("Loading training data from file...")
         X, y = training_data
