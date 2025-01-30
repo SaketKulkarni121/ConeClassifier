@@ -8,6 +8,7 @@ import joblib
 import pickle
 import os
 import xgboost as xgb
+from sklearn.model_selection import RandomizedSearchCV
 
 PLOT_FLAG = False
 
@@ -188,55 +189,44 @@ class TrackConeSimulator:
         print("Training XGBoost classifier...")
 
         # Split data into train/test sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         # Standardize features
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        # Create DMatrix for XGBoost (can handle sparse and dense data better)
-        dtrain = xgb.DMatrix(X_train_scaled, label=y_train)
-        dtest = xgb.DMatrix(X_test_scaled, label=y_test)
-
-        # Define hyperparameters for tuning
-        params = {
-            "objective": "binary:logistic",  # Binary classification task
-            "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
-            "random_state": 42,
-            "learning_rate": 0.05,  # Increase learning rate
-            "max_depth": 6,  # Reduced max depth to reduce overfitting
-            "min_child_weight": 1,  # Regularization
-            "subsample": 0.8,  # Use 80% of data for each tree
-            "colsample_bytree": 0.8,  # Use 80% of features for each tree
+        # Hyperparameter tuning
+        param_dist = {
+            "max_depth": [6, 8, 10],
+            "learning_rate": [0.01, 0.05, 0.1],
+            "subsample": [0.8, 0.9, 1.0],
+            "colsample_bytree": [0.8, 0.9, 1.0],
+            "n_estimators": [500, 1000, 2000],
+            "lambda": [1, 5, 10],  # L2 regularization
+            "alpha": [0, 1, 5],  # L1 regularization
         }
 
-        # Watchlist for early stopping (monitor the validation set)
-        watchlist = [(dtrain, "train"), (dtest, "eval")]
+        xgb_model = xgb.XGBClassifier(objective="binary:logistic", random_state=42)
+        search = RandomizedSearchCV(xgb_model, param_dist, n_iter=20, cv=3, scoring="accuracy", verbose=2, n_jobs=-1)
+        search.fit(X_train_scaled, y_train)
 
-        # Train the model with early stopping
-        model = xgb.train(
-            params,
-            dtrain,
-            num_boost_round=1000,  # Reduced number of boosting rounds
-            early_stopping_rounds=100,
-            evals=watchlist,
-            verbose_eval=50,  # More frequent feedback to track progress
-        )
+        # Train the best model
+        best_params = search.best_params_
+        model = xgb.XGBClassifier(**best_params)
+        model.fit(X_train_scaled, y_train, early_stopping_rounds=50, eval_set=[(X_test_scaled, y_test)], verbose=50)
 
-        # Make predictions
-        y_pred = model.predict(dtest, iteration_range=(0, model.best_iteration))
-        y_pred = (y_pred > 0.5).astype(int)  # Convert to binary classification
-
-        # Calculate accuracy
+        # Evaluate
+        y_pred = model.predict(X_test_scaled)
         accuracy = accuracy_score(y_test, y_pred)
-        print(f"Accuracy: {accuracy * 100:.2f}%")
-        
-        # Save the trained model and scaler
-        model.save_model("model.bin")
+        print(f"Final Accuracy: {accuracy * 100:.2f}%")
+
+        # Save model and scaler
+        model.save_model("best_model.bin")
         joblib.dump(scaler, "scaler.bin")
 
         return model, accuracy, scaler
+
 
     def test_classifier_on_random_splines(self, classifier, scaler, num_splines, num_samples):
         print(f"Testing classifier on {num_splines} random splines...")
