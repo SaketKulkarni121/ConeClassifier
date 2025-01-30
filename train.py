@@ -214,7 +214,7 @@ class TrackConeSimulator:
             "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
             "random_state": 42,
             "learning_rate": 0.01,  # Increase learning rate
-            "max_depth": 8,  # Reduced max depth to reduce overfitting
+            "max_depth": 6,  # Reduced max depth to reduce overfitting
             "min_child_weight": 1,  # Regularization
             "subsample": 0.8,  # Use 80% of data for each tree
             "colsample_bytree": 0.8,  # Use 80% of features for each tree
@@ -227,7 +227,7 @@ class TrackConeSimulator:
         model = xgb.train(
             params,
             dtrain,
-            num_boost_round=500,  # Reduced number of boosting rounds
+            num_boost_round=1000,  # Reduced number of boosting rounds
             early_stopping_rounds=1000,
             evals=watchlist,
             verbose_eval=50,  # More frequent feedback to track progress
