@@ -311,7 +311,7 @@ if __name__ == "__main__":
 
     training_data = load_training_data()
     if training_data is None:
-        completed= simulator.generate_training_data(num_samples=1, num_splines=5000000)
+        completed= simulator.generate_training_data(num_samples=1, num_splines=10000000)
         if completed:
             print("Training data generation complete.")
             X, y = load_training_data()
