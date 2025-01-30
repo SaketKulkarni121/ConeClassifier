@@ -202,18 +202,22 @@ class TrackConeSimulator:
         dtrain = xgb.DMatrix(X_train_scaled, label=y_train)
         dtest = xgb.DMatrix(X_test_scaled, label=y_test)
 
+        # Handle class imbalance
+        scale_pos_weight = len(y_train) / sum(y_train)
+        
         # Define hyperparameters for tuning
         params = {
             "objective": "binary:logistic",  # Binary classification task
             "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
             "random_state": 42,
-            "learning_rate": 0.01,  # Lower learning rate for finer tuning
-            "max_depth": 6,  # Depth of trees
-            "min_child_weight": 1,  # Regularization
+            "learning_rate": 0.01,  # Fine-tuning learning rate
+            "max_depth": 8,  # Increased max depth
+            "min_child_weight": 3,  # Increased min_child_weight for more regularization
             "subsample": 0.8,  # Use 80% of data for each tree
             "colsample_bytree": 0.8,  # Use 80% of features for each tree
-            "alpha": 0.1,  # L1 regularization (try tuning this)
-            "lambda": 1,  # L2 regularization (try tuning this)
+            "alpha": 0.5,  # L1 regularization
+            "lambda": 2,  # L2 regularization
+            "scale_pos_weight": scale_pos_weight,  # Handle class imbalance
         }
 
         # Perform cross-validation with early stopping
@@ -226,7 +230,7 @@ class TrackConeSimulator:
             verbose_eval=50,
             stratified=True
         )
-        
+
         # Best boosting round from cross-validation
         best_iteration = len(cv_results['test-logloss-mean']) - 1
         print(f"Best boosting round from cross-validation: {best_iteration}")
