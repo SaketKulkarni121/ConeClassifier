@@ -188,7 +188,7 @@ class TrackConeSimulator:
         print("Training XGBoost classifier...")
 
         # Split data into train/test sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
 
         # Standardize features
         scaler = StandardScaler()
@@ -199,13 +199,16 @@ class TrackConeSimulator:
         dtrain = xgb.DMatrix(X_train_scaled, label=y_train)
         dtest = xgb.DMatrix(X_test_scaled, label=y_test)
 
-        # Define hyperparameters
+        # Define hyperparameters for tuning
         params = {
-            "max_depth": 10,  # Depth of the trees (lower to reduce overfitting)
-            "learning_rate": 0.01,  # Smaller learning rate for finer adjustments
             "objective": "binary:logistic",  # Binary classification task
             "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
             "random_state": 42,
+            "learning_rate": 0.05,  # Increase learning rate
+            "max_depth": 6,  # Reduced max depth to reduce overfitting
+            "min_child_weight": 1,  # Regularization
+            "subsample": 0.8,  # Use 80% of data for each tree
+            "colsample_bytree": 0.8,  # Use 80% of features for each tree
         }
 
         # Watchlist for early stopping (monitor the validation set)
@@ -215,26 +218,27 @@ class TrackConeSimulator:
         model = xgb.train(
             params,
             dtrain,
-            num_boost_round=10000,
+            num_boost_round=1000,  # Reduced number of boosting rounds
             early_stopping_rounds=100,
             evals=watchlist,
-            verbose_eval=0,
+            verbose_eval=50,  # More frequent feedback to track progress
         )
 
         # Make predictions
         y_pred = model.predict(dtest, iteration_range=(0, model.best_iteration))
         y_pred = (y_pred > 0.5).astype(int)  # Convert to binary classification
 
-        # Evaluate accuracy
+        # Calculate accuracy
         accuracy = accuracy_score(y_test, y_pred)
-        print(f"XGBoost Classifier training complete. Accuracy: {accuracy:.4f}")
-
+        print(f"Accuracy: {accuracy * 100:.2f}%")
+        
         # Save the trained model and scaler
         model.save_model("model.bin")
+        joblib.dump(scaler, "scaler.bin")
 
         return model, accuracy
 
-    def test_classifier_on_random_splines(self, classifier, num_splines, num_samples):
+    def test_classifier_on_random_splines(self, classifier, scaler, num_splines, num_samples):
         print(f"Testing classifier on {num_splines} random splines...")
 
         accuracies = []
@@ -275,7 +279,8 @@ class TrackConeSimulator:
             X_test = np.array(all_features)
             y_test = np.array(all_labels)
 
-            dtest = xgb.DMatrix(X_test)
+            X_test_scaled = scaler.transform(X_test)
+            dtest = xgb.DMatrix(X_test_scaled)
 
             # Predict using the classifier
             y_pred = classifier.predict(dtest)
@@ -323,14 +328,15 @@ if __name__ == "__main__":
         X, y = training_data
 
     # Try to load pre-trained model and scaler if they exist
-    if os.path.exists("model.bin"):
+    if os.path.exists("model.bin") and os.path.exists("scaler.bin"):
         print("Loading pre-trained model and scaler...")
         classifier = xgb.Booster()
         classifier.load_model("model.bin")
+        scaler = joblib.load("scaler.bin")
     else:
         print("No pre-trained model found, training new model...")
         classifier, accuracy = simulator.train_cone_classifier(X, y, test_size=0.2, max_iter=1000)
 
     print("Testing classifier on random splines...")
-    average_accuracy = simulator.test_classifier_on_random_splines(classifier, num_splines=10, num_samples=1000)
+    average_accuracy = simulator.test_classifier_on_random_splines(classifier, scaler, num_splines=10, num_samples=1000)
     print(f"Average Test Accuracy: {average_accuracy:.4f}")
