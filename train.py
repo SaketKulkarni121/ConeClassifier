@@ -228,7 +228,7 @@ class TrackConeSimulator:
         )
         
         # Best boosting round from cross-validation
-        best_iteration = cv_results.shape[0] - 1
+        best_iteration = len(cv_results['test-logloss-mean']) - 1
         print(f"Best boosting round from cross-validation: {best_iteration}")
 
         # Train the final model using the best iteration
