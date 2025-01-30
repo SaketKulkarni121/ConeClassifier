@@ -11,7 +11,7 @@ import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.neural_network import MLPClassifier
 
-PLOT_FLAG = True
+PLOT_FLAG = False
 
 class TrackConeSimulator:
     def __init__(self, num_points=20, noise_std=0.1):
