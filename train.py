@@ -201,16 +201,10 @@ class TrackConeSimulator:
 
         # Define hyperparameters
         params = {
-            "max_depth": 12,  # Depth of the trees (lower to reduce overfitting)
+            "max_depth": 8,  # Depth of the trees (lower to reduce overfitting)
             "learning_rate": 0.01,  # Smaller learning rate for finer adjustments
             "objective": "binary:logistic",  # Binary classification task
             "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
-            "subsample": 0.85,  # Subsample ratio of the training data
-            "colsample_bytree": 0.85,  # Subsample ratio of features
-            "min_child_weight": 1,  # Minimum sum of instance weight needed in a child
-            "gamma": 0.1,  # Regularization parameter for pruning
-            "lambda": 1,  # L2 regularization term
-            "alpha": 0,  # L1 regularization term
             "random_state": 42,
         }
 
@@ -320,7 +314,7 @@ if __name__ == "__main__":
 
     training_data = load_training_data()
     if training_data is None:
-        completed= simulator.generate_training_data(num_samples=1, num_splines=500000)
+        completed= simulator.generate_training_data(num_samples=1, num_splines=5000000)
         if completed:
             print("Training data generation complete.")
             X, y = load_training_data()
