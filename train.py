@@ -8,6 +8,9 @@ import joblib
 import pickle
 import os
 import xgboost as xgb
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_auc_score, f1_score
 
 PLOT_FLAG = False
 
@@ -204,34 +207,52 @@ class TrackConeSimulator:
             "objective": "binary:logistic",  # Binary classification task
             "eval_metric": "logloss",  # Logarithmic loss as evaluation metric
             "random_state": 42,
-            "learning_rate": 0.05,  # Increase learning rate
-            "max_depth": 6,  # Reduced max depth to reduce overfitting
+            "learning_rate": 0.01,  # Lower learning rate for finer tuning
+            "max_depth": 6,  # Depth of trees
             "min_child_weight": 1,  # Regularization
             "subsample": 0.8,  # Use 80% of data for each tree
             "colsample_bytree": 0.8,  # Use 80% of features for each tree
+            "alpha": 0.1,  # L1 regularization (try tuning this)
+            "lambda": 1,  # L2 regularization (try tuning this)
         }
 
-        # Watchlist for early stopping (monitor the validation set)
-        watchlist = [(dtrain, "train"), (dtest, "eval")]
+        # Perform cross-validation with early stopping
+        cv_results = xgb.cv(
+            params,
+            dtrain,
+            num_boost_round=10000,
+            nfold=5,  # 5-fold cross-validation
+            early_stopping_rounds=100,
+            verbose_eval=50,
+            stratified=True
+        )
+        
+        # Best boosting round from cross-validation
+        best_iteration = cv_results.shape[0] - 1
+        print(f"Best boosting round from cross-validation: {best_iteration}")
 
-        # Train the model with early stopping
+        # Train the final model using the best iteration
         model = xgb.train(
             params,
             dtrain,
-            num_boost_round=1000,  # Reduced number of boosting rounds
-            early_stopping_rounds=100,
-            evals=watchlist,
-            verbose_eval=50,  # More frequent feedback to track progress
+            num_boost_round=best_iteration,
+            evals=[(dtrain, 'train'), (dtest, 'eval')],
+            verbose_eval=50
         )
 
         # Make predictions
-        y_pred = model.predict(dtest, iteration_range=(0, model.best_iteration))
-        y_pred = (y_pred > 0.5).astype(int)  # Convert to binary classification
+        y_pred_prob = model.predict(dtest, iteration_range=(0, best_iteration))
+        y_pred = (y_pred_prob > 0.5).astype(int)  # Convert to binary classification
 
-        # Calculate accuracy
+        # Evaluate the model
         accuracy = accuracy_score(y_test, y_pred)
+        roc_auc = roc_auc_score(y_test, y_pred_prob)  # AUC for better evaluation
+        f1 = f1_score(y_test, y_pred)  # F1 score for imbalanced classes
+
         print(f"Accuracy: {accuracy * 100:.2f}%")
-        
+        print(f"ROC AUC: {roc_auc:.4f}")
+        print(f"F1 Score: {f1:.4f}")
+
         # Save the trained model and scaler
         model.save_model("model.bin")
         joblib.dump(scaler, "scaler.bin")
