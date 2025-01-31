@@ -300,6 +300,14 @@ class TrackConeSimulator:
             accuracy = accuracy_score(y_test, y_pred)
             accuracies.append(accuracy)
 
+            # Calculate counts for true positives, false positives, true negatives, false negatives
+            true_pos = np.sum((y_test == 1) & (y_pred == 1))
+            false_pos = np.sum((y_test == 0) & (y_pred == 1))
+            true_neg = np.sum((y_test == 0) & (y_pred == 0))
+            false_neg = np.sum((y_test == 1) & (y_pred == 0))
+
+            print(f"Spline {spline_idx + 1}: TP={true_pos}, FP={false_pos}, TN={true_neg}, FN={false_neg}")
+
         average_accuracy = np.mean(accuracies)
         print(f"Average accuracy over {num_splines} splines: {average_accuracy:.4f}")
         return average_accuracy
