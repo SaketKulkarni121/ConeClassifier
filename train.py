@@ -125,8 +125,9 @@ class TrackConeSimulator:
         return left_cones, right_cones, start_point, direction
 
     def generate_training_data(self, num_samples, num_splines):
-        all_features = []
-        all_labels = []
+        # Dictionary to store features and labels per spline
+        all_spline_data = {}
+
         num_initial_cones = 5  # Number of initial cones to include
 
         for spline_idx in range(num_splines):
@@ -136,41 +137,54 @@ class TrackConeSimulator:
             # Reset spline for each new iteration
             self.reset_spline()
 
-            for sample_idx in range(num_samples):
-                left_cones, right_cones, start_point, direction = self.generate_cones()
-                cones = np.vstack([left_cones, right_cones])
-                labels = np.array([0] * len(left_cones) + [1] * len(right_cones))
+            left_cones, right_cones, start_point, direction = self.generate_cones()
+            cones = np.vstack([left_cones, right_cones])
+            labels = np.array([0] * len(left_cones) + [1] * len(right_cones))
 
-                # Extract initial cones
-                first_left = left_cones[:num_initial_cones].flatten()
-                first_right = right_cones[-num_initial_cones:].flatten()
+            # Extract initial cones
+            first_left = left_cones[:num_initial_cones].flatten()
+            first_right = right_cones[-num_initial_cones:].flatten()
 
-                for cone in cones:
-                    # Calculate distance from start point to cone
-                    distance = np.linalg.norm(cone - start_point)
+            # Initialize lists to hold features and labels for this spline
+            spline_features = []
+            spline_labels = []
 
-                    # Enhanced feature vector
-                    features = [
-                        *cone,
-                        distance,
-                        *start_point,
-                        *direction,
-                        *first_left,
-                        *first_right,
-                    ]
-                    all_features.append(features)
+            for cone in cones:
+                # Calculate distance from start point to cone
+                distance = np.linalg.norm(cone - start_point)
 
-                all_labels.extend(labels)
+                # Enhanced feature vector
+                features = [
+                    *cone,
+                    distance,
+                    *start_point,
+                    *direction,
+                    *first_left,
+                    *first_right,
+                ]
+                spline_features.append(features)
 
-            if sample_idx % 1000 == 0:
-                save_training_data_incrementally((np.array(all_features), np.array(all_labels)))
-                
-                all_features.clear()
-                all_labels.clear()
+            spline_labels.extend(labels)
+
+            # Store the generated features and labels for the current spline
+            all_spline_data[spline_idx] = {
+                'features': np.array(spline_features),
+                'labels': np.array(spline_labels)
+            }
+
+            # Periodically save the data for the current spline and clear it out
+            if spline_idx % 1000 == 0:
+                save_training_data_incrementally(
+                    (np.array(spline_features), np.array(spline_labels))
+                )
+                # Optionally clear data if you want to free memory
+                spline_features.clear()
+                spline_labels.clear()
 
         print("Training data generation complete.")
 
-        return True
+        return all_spline_data
+
 
     def plot_track(self, left_cones, right_cones):
         if PLOT_FLAG:
@@ -261,31 +275,30 @@ class TrackConeSimulator:
             test_simulator = TrackConeSimulator()
             test_simulator.reset_spline()
 
-            for _ in range(num_samples):
-                left_cones, right_cones, start_point, direction = test_simulator.generate_cones()
-                cones = np.vstack([left_cones, right_cones])
-                labels = np.array([0] * len(left_cones) + [1] * len(right_cones))
+            left_cones, right_cones, start_point, direction = test_simulator.generate_cones()
+            cones = np.vstack([left_cones, right_cones])
+            labels = np.array([0] * len(left_cones) + [1] * len(right_cones))
 
-                # Extract initial cones
-                first_left = left_cones[:num_initial_cones].flatten()
-                first_right = right_cones[-num_initial_cones:].flatten()
+            # Extract initial cones
+            first_left = left_cones[:num_initial_cones].flatten()
+            first_right = right_cones[-num_initial_cones:].flatten()
 
-                for cone in cones:
-                    # Calculate distance from start point to cone
-                    distance = np.linalg.norm(cone - start_point)
+            for cone in cones:
+                # Calculate distance from start point to cone
+                distance = np.linalg.norm(cone - start_point)
 
-                    # Enhanced feature vector
-                    features = [
-                        *cone,
-                        distance,
-                        *start_point,
-                        *direction,
-                        *first_left,
-                        *first_right,
-                    ]
-                    all_features.append(features)
+                # Enhanced feature vector
+                features = [
+                    *cone,
+                    distance,
+                    *start_point,
+                    *direction,
+                    *first_left,
+                    *first_right,
+                ]
+                all_features.append(features)
 
-                all_labels.extend(labels)
+            all_labels.extend(labels)
 
             X_test = np.array(all_features)
             y_test = np.array(all_labels)
@@ -299,14 +312,28 @@ class TrackConeSimulator:
 
             accuracy = accuracy_score(y_test, y_pred)
             accuracies.append(accuracy)
-
+            
+            # print(len(y_test))
+            # print(len(y_pred))
             # Calculate counts for true positives, false positives, true negatives, false negatives
             true_pos = np.sum((y_test == 1) & (y_pred == 1))
             false_pos = np.sum((y_test == 0) & (y_pred == 1))
             true_neg = np.sum((y_test == 0) & (y_pred == 0))
             false_neg = np.sum((y_test == 1) & (y_pred == 0))
 
-            print(f"Spline {spline_idx + 1}: TP={true_pos}, FP={false_pos}, TN={true_neg}, FN={false_neg}")
+            # print(f"Spline {spline_idx + 1}: TP={true_pos}, FP={false_pos}, TN={true_neg}, FN={false_neg}")
+            
+            true_pos = 0
+            false_pos = 0
+            true_neg = 0
+            false_neg = 0
+            
+            X_test = None
+            y_test = None
+            y_pred = None
+            
+            all_features = []
+            all_labels = []
 
         average_accuracy = np.mean(accuracies)
         print(f"Average accuracy over {num_splines} splines: {average_accuracy:.4f}")
