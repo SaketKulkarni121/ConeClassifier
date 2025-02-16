@@ -11,7 +11,7 @@ import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.neural_network import MLPClassifier
 
-PLOT_FLAG = False
+PLOT_FLAG = True
 
 class TrackConeSimulator:
     def __init__(self, num_points=20, noise_std=0.1):
@@ -153,14 +153,14 @@ class TrackConeSimulator:
                 # Calculate distance from start point to cone
                 distance = np.linalg.norm(cone - start_point)
 
-                # Enhanced feature vector
+                # Enhanced feature vector for each cone
                 features = [
-                    *cone,
-                    distance,
-                    *start_point,
-                    *direction,
-                    *first_left,
-                    *first_right,
+                    *cone,  # Cone's x, y, z position
+                    distance,  # Distance from start point to the cone
+                    *start_point,  # The start point
+                    *direction,  # The direction vector
+                    *first_left,  # The first left cone positions
+                    *first_right,  # The first right cone positions
                 ]
                 spline_features.append(features)
 
@@ -177,12 +177,16 @@ class TrackConeSimulator:
                 save_training_data_incrementally(
                     (np.array(spline_features), np.array(spline_labels))
                 )
-                # Optionally clear data if you want to free memory
+                # Optionally clear data to free memory
                 spline_features.clear()
                 spline_labels.clear()
 
-        print("Training data generation complete.")
+        # Save any remaining data
+        save_training_data_incrementally(
+            (np.array(spline_features), np.array(spline_labels))
+        )
 
+        print("Training data generation complete.")
         return all_spline_data
 
 
@@ -217,6 +221,11 @@ class TrackConeSimulator:
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
+        
+        print(X_train_scaled)
+        print(X_test_scaled)
+        print(y_train)
+        print(y_test)
 
         # Create DMatrix for XGBoost (can handle sparse and dense data better)
         dtrain = xgb.DMatrix(X_train_scaled, label=y_train)
@@ -246,11 +255,9 @@ class TrackConeSimulator:
             evals=watchlist,
             verbose_eval=50,  # More frequent feedback to track progress
         )
-
         # Make predictions
         y_pred = model.predict(dtest, iteration_range=(0, model.best_iteration))
         y_pred = (y_pred > 0.5).astype(int)  # Convert to binary classification
-
         # Calculate accuracy
         accuracy = accuracy_score(y_test, y_pred)
         print(f"Accuracy: {accuracy * 100:.2f}%")
@@ -365,7 +372,7 @@ if __name__ == "__main__":
 
     training_data = load_training_data()
     if training_data is None:
-        completed= simulator.generate_training_data(num_samples=1, num_splines=50000)
+        completed= simulator.generate_training_data(num_samples=1, num_splines=10)
         if completed:
             print("Training data generation complete.")
             X, y = load_training_data()
