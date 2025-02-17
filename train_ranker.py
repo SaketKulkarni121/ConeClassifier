@@ -164,6 +164,8 @@ def train_model(dataset, model, epochs=100, batch_size=32, learning_rate=0.001):
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.CrossEntropyLoss()
     
+    best_accuracy = 0
+    
     for epoch in range(epochs):
         model.train()
         running_loss = 0.0
@@ -203,6 +205,17 @@ def train_model(dataset, model, epochs=100, batch_size=32, learning_rate=0.001):
         epoch_loss = running_loss / len(dataloader)
         accuracy = 100 * correct / total
         print(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.2f}%")
+        
+        # Save best model
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'accuracy': accuracy,
+                'loss': epoch_loss,
+            }, 'best_model.pth')
 
 def evaluate_model(model, dataset):
     model.eval()
@@ -245,6 +258,20 @@ def main():
     
     model = ConeClassifier()
     train_model(dataset, model)
+    
+    # Save final model
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'final_config': {
+            'input_size': 2,
+            'conv1_channels': 32,
+            'conv2_channels': 64,
+            'pool_size': 16,
+            'fc1_size': 128,
+            'output_size': 2
+        }
+    }, 'model.pth')
+    
     evaluate_model(model, dataset)
 
 if __name__ == '__main__':
