@@ -107,28 +107,40 @@ class LaneDetectionDataset(Dataset):
 class ConeClassifier(nn.Module):
     def __init__(self):
         super(ConeClassifier, self).__init__()
-        # Simpler architecture focused on spatial relationships
+        # Convolutional layers
         self.conv1 = nn.Conv1d(2, 32, kernel_size=3, padding=1)
         self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool1d(2)
-        self.fc1 = nn.Linear(64 * 2, 128)
+        
+        # Adaptive pooling to get fixed size output regardless of input length
+        self.adaptive_pool = nn.AdaptiveAvgPool1d(16)  # Fixed output size
+        
+        # Calculate the flattened size after conv layers and pooling
+        self._get_conv_output = lambda x: 64 * 16  # channels * fixed_length
+        
+        # Fully connected layers with correct dimensions
+        self.fc1 = nn.Linear(self._get_conv_output(None), 128)
         self.fc2 = nn.Linear(128, 2)
         self.dropout = nn.Dropout(0.3)
         
     def forward(self, x):
-        # Ensure input is 3D: [batch_size, channels, sequence_length]
+        # Ensure input is 3D: [batch_size, sequence_length, channels]
         if len(x.shape) == 2:
             x = x.unsqueeze(0)
+            
+        # Change to [batch, channels, sequence_length]
         x = x.permute(0, 2, 1)  # [batch, 2, points]
         
         # Convolutional layers
         x = F.relu(self.conv1(x))
-        x = self.pool(x)
         x = F.relu(self.conv2(x))
-        x = self.pool(x)
         
-        # Flatten and fully connected layers
+        # Adaptive pooling to get fixed size
+        x = self.adaptive_pool(x)
+        
+        # Flatten
         x = x.view(x.size(0), -1)
+        
+        # Fully connected layers
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
@@ -196,7 +208,6 @@ def evaluate_model(model, dataset):
     model.eval()
     correct = 0
     total = 0
-    iou_scores = []
     
     with torch.no_grad():
         for left_tensor, right_tensor in dataset:
@@ -212,21 +223,22 @@ def evaluate_model(model, dataset):
             # Calculate accuracy
             _, predicted_left = torch.max(left_pred.data, 1)
             _, predicted_right = torch.max(right_pred.data, 1)
+            
+            # Count correct predictions
             total += 2  # Two predictions per sample
             correct += (predicted_left == 0).sum().item()  # Should predict left (0)
             correct += (predicted_right == 1).sum().item()  # Should predict right (1)
-            
-            # Calculate IoU
-            iou_left = compute_iou(left_tensor.numpy(), left_tensor.numpy())
-            iou_right = compute_iou(right_tensor.numpy(), right_tensor.numpy())
-            iou_scores.extend([iou_left, iou_right])
     
     accuracy = 100 * correct / total
-    avg_iou = np.mean(iou_scores)
     print(f"Test Accuracy: {accuracy:.2f}%")
-    print(f"Average IoU: {avg_iou:.4f}")
+    
+    # Print confidence scores
+    print("\nConfidence Analysis:")
+    left_conf = torch.softmax(left_pred, dim=1)
+    right_conf = torch.softmax(right_pred, dim=1)
+    print(f"Average confidence for left cones: {left_conf[:, 0].mean():.4f}")
+    print(f"Average confidence for right cones: {right_conf[:, 1].mean():.4f}")
 
-# 7. Main function to orchestrate training
 def main():
     perceptual_field_data = generate_perceptual_field_data(boundaries, cone_maps)
     dataset = LaneDetectionDataset(perceptual_field_data)
