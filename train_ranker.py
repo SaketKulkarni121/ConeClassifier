@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, Dataset
 import random
 import torch.nn.functional as F
 
-dataset_path = "/Users/saket/Documents/CMU/CMR/ConeClassifier/dataset"
+dataset_path = "/Users/ishaan/Documents/Projects/ConeClassifier/dataset"
 
 # 1. Load the dataset (boundaries and cone maps)
 def load_yaml_data(path):
@@ -159,7 +159,7 @@ def compute_iou(pred, gt):
     
     return intersection / max(union, 1)  # Avoid division by zero
 
-def train_model(dataset, model, epochs=100, batch_size=32, learning_rate=0.001):
+def train_model(dataset, model, epochs=1000, batch_size=128, learning_rate=0.0005):
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.CrossEntropyLoss()
