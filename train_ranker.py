@@ -252,27 +252,72 @@ def evaluate_model(model, dataset):
     print(f"Average confidence for left cones: {left_conf[:, 0].mean():.4f}")
     print(f"Average confidence for right cones: {right_conf[:, 1].mean():.4f}")
 
-def main():
+def load_model(model_path='model.pth'):
+    """Load a pre-trained model from file"""
+    model = ConeClassifier()
+    
+    try:
+        checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
+        
+        # Handle different save formats
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            model.load_state_dict(checkpoint)
+            
+        print(f"Model loaded successfully from {model_path}")
+        return model
+    except FileNotFoundError:
+        print(f"Model file {model_path} not found!")
+        return None
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return None
+
+def main(mode='train', model_path='model.pth'):
+    """
+    Main function with mode selection
+    mode: 'train' to train a new model, 'eval' to only evaluate existing model
+    model_path: path to the saved model file
+    """
     perceptual_field_data = generate_perceptual_field_data(boundaries, cone_maps)
     dataset = LaneDetectionDataset(perceptual_field_data)
     
-    model = ConeClassifier()
-    train_model(dataset, model)
-    
-    # Save final model
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'final_config': {
-            'input_size': 2,
-            'conv1_channels': 32,
-            'conv2_channels': 64,
-            'pool_size': 16,
-            'fc1_size': 128,
-            'output_size': 2
-        }
-    }, 'model.pth')
-    
-    evaluate_model(model, dataset)
+    if mode == 'eval':
+        # Only evaluate existing model
+        model = load_model(model_path)
+        if model is not None:
+            evaluate_model(model, dataset)
+        else:
+            print("Cannot evaluate: model loading failed")
+    else:
+        # Train new model (default behavior)
+        model = ConeClassifier()
+        train_model(dataset, model)
+        
+        # Save final model
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'final_config': {
+                'input_size': 2,
+                'conv1_channels': 32,
+                'conv2_channels': 64,
+                'pool_size': 16,
+                'fc1_size': 128,
+                'output_size': 2
+            }
+        }, 'model.pth')
+        
+        evaluate_model(model, dataset)
 
 if __name__ == '__main__':
-    main()
+    import sys
+    
+    # Check command line arguments
+    if len(sys.argv) > 1:
+        mode = sys.argv[1]
+        model_path = sys.argv[2] if len(sys.argv) > 2 else 'model.pth'
+        main(mode, model_path)
+    else:
+        # Default behavior - you can change this to 'eval' if you want
+        main('train')
