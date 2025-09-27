@@ -205,7 +205,7 @@ def compute_iou(pred, gt):
     
     return intersection / max(union, 1)  # Avoid division by zero
 
-def train_model(train_dataset, val_dataset, model, epochs=50, batch_size=128, learning_rate=0.001):
+def train_model(train_dataset, val_dataset, model, epochs=250, batch_size=128, learning_rate=0.0015):
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     
@@ -219,7 +219,7 @@ def train_model(train_dataset, val_dataset, model, epochs=50, batch_size=128, le
     best_val_accuracy = 0
     epochs_no_improve = 0
     patience = 50  # Reduced patience for small dataset
-    min_delta = 0.0001  # Minimum change to qualify as improvement
+    min_delta = 0.001  # Minimum change to qualify as improvement
     
     print(f"Starting training with early stopping patience: {patience} epochs")
     print(f"Minimum improvement threshold: {min_delta}")
@@ -264,7 +264,39 @@ def train_model(train_dataset, val_dataset, model, epochs=50, batch_size=128, le
         accuracy = 100 * correct / total
         
         # --- Validation Step ---
-        val_loss, val_accuracy = evaluate_model(model, val_dataloader)
+        model.eval()
+        val_correct = 0
+        val_total = 0
+        val_running_loss = 0.0
+        
+        with torch.no_grad():
+            for left_tensor, right_tensor in val_dataloader:
+                batch_size = left_tensor.size(0)
+
+                # Create labels
+                labels_left = torch.zeros(batch_size, dtype=torch.long)
+                labels_right = torch.ones(batch_size, dtype=torch.long)
+
+                # Get predictions
+                left_pred = model(left_tensor)
+                right_pred = model(right_tensor)
+
+                # Calculate loss
+                loss_left = criterion(left_pred, labels_left)
+                loss_right = criterion(right_pred, labels_right)
+                val_running_loss += (loss_left + loss_right).item()
+                
+                # Calculate accuracy
+                _, predicted_left = torch.max(left_pred.data, 1)
+                _, predicted_right = torch.max(right_pred.data, 1)
+                
+                # Count correct predictions
+                val_total += batch_size * 2
+                val_correct += (predicted_left == labels_left).sum().item()
+                val_correct += (predicted_right == labels_right).sum().item()
+        
+        val_accuracy = 100 * val_correct / val_total
+        val_loss = val_running_loss / len(val_dataloader)
         
         # Update learning rate based on validation loss
         old_lr = optimizer.param_groups[0]['lr']
@@ -314,42 +346,40 @@ def train_model(train_dataset, val_dataset, model, epochs=50, batch_size=128, le
             print(f"Best validation loss: {best_val_loss:.4f}, Best validation accuracy: {best_val_accuracy:.2f}%")
             break
 
-def evaluate_model(model, dataloader):
+def evaluate_model(model, dataset):
     model.eval()
     correct = 0
     total = 0
-    running_loss = 0.0
-    criterion = nn.CrossEntropyLoss()
     
     with torch.no_grad():
-        for left_tensor, right_tensor in dataloader:
-            batch_size = left_tensor.size(0)
-
-            # Create labels
-            labels_left = torch.zeros(batch_size, dtype=torch.long)
-            labels_right = torch.ones(batch_size, dtype=torch.long)
-
+        for left_tensor, right_tensor in dataset:
+            if not isinstance(left_tensor, torch.Tensor):
+                left_tensor = torch.tensor(left_tensor, dtype=torch.float32)
+            if not isinstance(right_tensor, torch.Tensor):
+                right_tensor = torch.tensor(right_tensor, dtype=torch.float32)
+            
             # Get predictions
             left_pred = model(left_tensor)
             right_pred = model(right_tensor)
-
-            # Calculate loss
-            loss_left = criterion(left_pred, labels_left)
-            loss_right = criterion(right_pred, labels_right)
-            running_loss += (loss_left + loss_right).item()
             
             # Calculate accuracy
             _, predicted_left = torch.max(left_pred.data, 1)
             _, predicted_right = torch.max(right_pred.data, 1)
             
             # Count correct predictions
-            total += batch_size * 2
-            correct += (predicted_left == labels_left).sum().item()
-            correct += (predicted_right == labels_right).sum().item()
+            total += 2  # Two predictions per sample
+            correct += (predicted_left == 0).sum().item()  # Should predict left (0)
+            correct += (predicted_right == 1).sum().item()  # Should predict right (1)
     
     accuracy = 100 * correct / total
-    loss = running_loss / len(dataloader)
-    return loss, accuracy
+    print(f"Test Accuracy: {accuracy:.2f}%")
+    
+    # Print confidence scores
+    print("\nConfidence Analysis:")
+    left_conf = torch.softmax(left_pred, dim=1)
+    right_conf = torch.softmax(right_pred, dim=1)
+    print(f"Average confidence for left cones: {left_conf[:, 0].mean():.4f}")
+    print(f"Average confidence for right cones: {right_conf[:, 1].mean():.4f}")
 
 def load_model(model_path='model.pth'):
     """Load a pre-trained model from file"""
@@ -406,8 +436,7 @@ def main(mode='train', model_path='model.pth'):
         model = load_model(model_path)
         if model is not None:
             print("Evaluating on validation set...")
-            _, accuracy = evaluate_model(model, val_loader)
-            print(f"Test Accuracy: {accuracy:.2f}%")
+            evaluate_model(model, val_dataset)
         else:
             print("Cannot evaluate: model loading failed")
     else:
@@ -419,8 +448,8 @@ def main(mode='train', model_path='model.pth'):
         print("Loading best model for final evaluation...")
         best_model = load_model('best_model.pth')
         if best_model:
-            _, final_accuracy = evaluate_model(best_model, val_loader)
-            print(f"Final validation accuracy of best model: {final_accuracy:.2f}%")
+            print("Final evaluation of best model:")
+            evaluate_model(best_model, val_dataset)
         
         # Save final model
         torch.save({
